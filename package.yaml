@@ -46,6 +46,11 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - tlgbot
+    - text == 1.2.5.0
+    - time == 1.9.3
+    - mtl  == 2.2.2
+    - telegram-bot-simple
+    - unordered-containers
 
 tests:
   tlgbot-test:
