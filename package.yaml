@@ -51,6 +51,7 @@ executables:
     - mtl  == 2.2.2
     - telegram-bot-simple
     - unordered-containers
+    - servant-client == 0.19
 
 tests:
   tlgbot-test:

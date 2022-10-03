@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Main where
 
 import qualified Data.Text                        as Text
@@ -8,37 +10,47 @@ import Telegram.Bot.API
       Token,
       Update,
       extractUpdateMessage,
-      Message(messageText),
+      Message(messageText, messageSenderChat, messageNewChatTitle),
       MessageId,
-      Message(messageText), messageMessageId )
+      Message(messageText), messageMessageId, deleteMessage, Response (Response, responseResult), updateChatId )
 import Telegram.Bot.Simple
     ( getEnvToken, startBot_, (<#), Eff, BotApp(..) )
 import Telegram.Bot.Simple.Debug (traceBotDefault, traceBotActionsShow, traceTelegramUpdatesJSON, ppAsJSON)
 import Telegram.Bot.Simple.UpdateParser (parseUpdate, plainText, updateMessageText, mkParser, UpdateParser)
-import Telegram.Bot.API.Types (messageText)
+import Telegram.Bot.API.Types (messageText, ChatId, chatId)
 import Control.Monad.Cont ( MonadIO(liftIO) )
-import Control.Applicative (Applicative(liftA2))
-import Data.HashMap.Strict (HashMap, empty, insert, delete)
+import Control.Applicative (Applicative(liftA2), (<|>))
+import Data.HashMap.Strict (HashMap, empty, insert, delete, filterWithKey, mapMaybeWithKey)
+import Servant.Client.Internal.HttpClient (ClientM (ClientM))
 
 newtype Model = Model {
-  modelMap :: HashMap MessageId Text.Text
+  modelMap :: HashMap MessageId Message
 }
   deriving Show
 
 initialModel :: Model
 initialModel = Model empty
 
-add :: MessageId -> Text.Text -> Model -> Model
-add msgId msgText model = Model 
-  $ insert msgId msgText 
+add :: MessageId -> Message -> Model -> Model
+add msgId msg model = Model
+  $ insert msgId msg
   $ modelMap model
 
-delete_ :: MessageId -> Model -> Model
-delete_ msgId model = Model
-  $ delete msgId
-  $ modelMap model
+-- delete_ :: ChatId -> MessageId -> Model -> Model
+-- delete_ chatId_ msgId model = Model
+  -- $ mapMaybeWithKey f
+  -- $ modelMap model
+  -- where
+  --   f k v = do
+  --     isDeleted <- responseResult <$> deleteMessage chatId_ k
+  --     if isDeleted then
+  --       Just v
+  --     else
+  --       Nothing
 
-data Action = NoAction | Add MessageId Text.Text | Delete MessageId
+data Action = NoAction
+    | Add MessageId Message
+    -- | Delete ChatId MessageId
     deriving Show
 
 bot :: BotApp Model Action
@@ -50,28 +62,34 @@ bot = BotApp
   }
 
 handleUpdate :: Model -> Update -> Maybe Action
-handleUpdate _ update = flip parseUpdate update $ do
+handleUpdate model = parseUpdate $ do
   msgId    <- getMessageId
-  msgText  <- getMessageText
-  pure $ if msgText == Text.empty then Delete msgId else Add msgId msgText
+  -- chatId_   <- getChatId
+  Add msgId <$> messageParser
 
 handleAction :: Action -> Model -> Eff Action Model
 handleAction action model = case action of
-  NoAction          -> pure model
-  Add msgId msgText -> add msgId msgText model <# do
+  NoAction             -> pure model
+  Add msgId msg    -> add msgId msg model <# do
     pure NoAction
-  Delete msgId      -> delete_ msgId model <# do
-    pure NoAction
-  
+  -- Delete chatId_ msgId -> delete_ chatId_ msgId model <# do
+  --   pure NoAction
+
 
 messageParser :: UpdateParser Message
 messageParser = mkParser extractUpdateMessage
+
+getChatId :: UpdateParser ChatId
+getChatId = mkParser updateChatId
 
 getMessageText :: UpdateParser Text.Text
 getMessageText = fromJust . messageText <$> messageParser
 
 getMessageId :: UpdateParser MessageId
 getMessageId = messageMessageId <$> messageParser
+
+-- getChatId :: UpdateParser ChatId
+-- getChatId =  chatId . fromJust . messageSenderChat <$> messageParser
 
 
 run :: IO ()

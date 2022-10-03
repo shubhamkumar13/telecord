@@ -45,6 +45,7 @@ executable tlgbot-exe
   build-depends:
       base >=4.7 && <5
     , mtl ==2.2.2
+    , servant-client ==0.19
     , telegram-bot-simple
     , text ==1.2.5.0
     , time ==1.9.3
